@@ -10,6 +10,7 @@
 const LOG_FILE = __DIR__ . '/webhook_log.txt';
 const WOOCOMMERCE_BASE_URL = 'https://provisionapps.com/sistemaABP/wp-json/wc/v3';
 const DEFAULT_CUSTOMER_PASSWORD_LENGTH = 20;
+const LOG_PAYLOAD_LIMIT = 12000;
 
 $consumerKey = getenv('WOOCOMMERCE_CONSUMER_KEY') ?: 'ck_1928414e20080c927342f27c7e57dda67b656522';
 $consumerSecret = getenv('WOOCOMMERCE_CONSUMER_SECRET') ?: 'cs_b27b0caf859f788f6aac7044fcdf1424bc1b168c';
@@ -31,6 +32,7 @@ function handleKommoWebhook(string $consumerKey, string $consumerSecret, string 
         'method' => $_SERVER['REQUEST_METHOD'] ?? null,
         'content_type' => $_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? null,
     ]);
+    logMessage('Datos recibidos (URL-encoded): ' . truncateForLog($rawData, LOG_PAYLOAD_LIMIT));
 
     sendKommoAcceptedResponse();
 
@@ -47,6 +49,7 @@ function handleKommoWebhook(string $consumerKey, string $consumerSecret, string 
         }
 
         logMessage('Payload decodificado.', ['entities' => array_keys($data)]);
+        logMessage('Datos decodificados: ' . truncateForLog(print_r($data, true), LOG_PAYLOAD_LIMIT));
 
         $contact = extractCustomerFromKommoPayload($data);
         if ($contact === null) {
@@ -317,7 +320,7 @@ function findCustomFieldValue($fields, string $code, array $nameHints): ?string
         $matchesName = false;
 
         foreach ($nameHints as $hint) {
-            if ($fieldName !== '' && str_contains($fieldName, mb_strtolower($hint, 'UTF-8'))) {
+            if ($fieldName !== '' && stringContains($fieldName, mb_strtolower($hint, 'UTF-8'))) {
                 $matchesName = true;
                 break;
             }
@@ -389,6 +392,19 @@ function normalizeText($value): ?string
     $value = trim((string)$value);
 
     return $value === '' ? null : $value;
+}
+
+function stringContains(string $haystack, string $needle): bool
+{
+    if ($needle === '') {
+        return true;
+    }
+
+    if (function_exists('mb_strpos')) {
+        return mb_strpos($haystack, $needle, 0, 'UTF-8') !== false;
+    }
+
+    return strpos($haystack, $needle) !== false;
 }
 
 function getNameFromEmail(string $email): string
